@@ -182,15 +182,11 @@ app.use('*', async (c, next) => {
 
 // CORS middleware with configurable origin
 app.use('*', async (c, next) => {
+  // In production, FRONTEND_URL should be set; localhost only allowed when not configured
   const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-  const allowedOrigins = [frontendUrl];
-  // Also allow localhost in development
-  if (frontendUrl !== 'http://localhost:5173') {
-    allowedOrigins.push('http://localhost:5173');
-  }
 
   return cors({
-    origin: allowedOrigins,
+    origin: [frontendUrl],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge: 600,
