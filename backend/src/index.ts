@@ -521,7 +521,19 @@ app.get('/users', async (c) => {
       .order('first_name');
 
     if (error) throw error;
-    return c.json(data);
+
+    // Transform to camelCase for frontend
+    const users = (data || []).map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      firstName: u.first_name,
+      lastName: u.last_name,
+      permission: u.permission,
+      enabled: u.enabled,
+      createdAt: u.created_at,
+    }));
+
+    return c.json(users);
   } catch (error: any) {
     console.error('Get users error:', error.message);
     return c.json({ error: error.message }, 500);
@@ -543,7 +555,17 @@ app.get('/users/:id', async (c) => {
       .single();
 
     if (error) throw error;
-    return c.json(data);
+
+    // Transform to camelCase for frontend
+    return c.json({
+      id: data.id,
+      email: data.email,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      permission: data.permission,
+      enabled: data.enabled,
+      createdAt: data.created_at,
+    });
   } catch (error: any) {
     console.error('Get user error:', error.message);
     return c.json({ error: 'User not found' }, 404);
@@ -584,7 +606,16 @@ app.post('/users', async (c) => {
       .single();
 
     if (error) throw error;
-    return c.json(data, 201);
+
+    // Transform to camelCase for frontend
+    return c.json({
+      id: data.id,
+      email: data.email,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      permission: data.permission,
+      enabled: data.enabled,
+    }, 201);
   } catch (error: any) {
     console.error('Create user error:', error.message);
     return c.json({ error: error.message }, 400);
@@ -645,7 +676,15 @@ app.put('/users/:id', async (c) => {
       );
     }
 
-    return c.json(data);
+    // Transform to camelCase for frontend
+    return c.json({
+      id: data.id,
+      email: data.email,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      permission: data.permission,
+      enabled: data.enabled,
+    });
   } catch (error: any) {
     console.error('Update user error:', error.message);
     return c.json({ error: error.message }, 400);
