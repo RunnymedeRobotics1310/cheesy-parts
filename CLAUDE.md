@@ -76,7 +76,7 @@ Single-file Hono application with all routes:
 - **Settings:** `/settings`
 - **Vendors:** `/vendors` (for autocomplete)
 
-Authentication uses HMAC-signed tokens (30-day validity). Three permission levels: `readonly`, `editor`, `admin`.
+Authentication uses HMAC-signed tokens (14-day validity). Three permission levels: `readonly`, `editor`, `admin`.
 
 ### Frontend
 
@@ -123,6 +123,30 @@ Parts auto-generate numbers based on project prefix:
 - **Assemblies:** `PREFIX-A-####` (increments by 100)
 - **Parts:** `PREFIX-P-####` (increments by 1)
 
+## Security
+
+### Password Requirements
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+
+### Rate Limiting
+Login endpoint is rate-limited to 5 attempts per 60 seconds per IP using Cloudflare's Rate Limiting binding.
+
+### CORS
+CORS is configured via the `FRONTEND_URL` environment variable. In development, `http://localhost:5173` is always allowed.
+
+### Security Headers
+All responses include:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+### Password Hashing
+PBKDF2 with SHA-256, 600,000 iterations (OWASP recommended).
+
 ## Environment Variables
 
 Backend requires (in `backend/.dev.vars` for local, Cloudflare dashboard for production):
@@ -131,6 +155,7 @@ Backend requires (in `backend/.dev.vars` for local, Cloudflare dashboard for pro
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-key
 AUTH_SECRET=random-string-for-token-signing
+FRONTEND_URL=https://parts.team1310.ca  # For CORS (defaults to localhost:5173)
 RESEND_API_KEY=optional-for-emails
 ADMIN_EMAIL=optional-notification-recipient
 ```

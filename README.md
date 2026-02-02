@@ -41,6 +41,7 @@ Originally created by [FRC Team 254](https://www.team254.com/), modernized by [F
    SUPABASE_SERVICE_KEY=your-service-key
    AUTH_SECRET=your-random-secret-key-here
    DATABASE_URL=postgresql://...
+   FRONTEND_URL=https://your-domain.com  # For CORS (defaults to localhost:5173)
    RESEND_API_KEY=your_api_key  # Optional, for email notifications
    ADMIN_EMAIL=admin@example.com  # Optional
    ```
@@ -115,6 +116,14 @@ Parts auto-generate numbers based on project prefix:
 - **Parts:** `PREFIX-P-####` (increments by 1)
 
 For example, in a project with prefix "2024", assemblies would be numbered 2024-A-100, 2024-A-200, etc., while parts would be 2024-P-1, 2024-P-2, etc.
+
+## Security
+
+- **Password requirements:** 8+ characters with uppercase, lowercase, and number
+- **Rate limiting:** Login attempts limited to 5 per 60 seconds per IP
+- **CORS:** Restricted to configured `FRONTEND_URL`
+- **Token validity:** 14 days
+- **Password hashing:** PBKDF2-SHA256 with 600,000 iterations
 
 ## Contributing
 
