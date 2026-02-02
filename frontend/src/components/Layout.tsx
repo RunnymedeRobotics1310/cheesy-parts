@@ -1,13 +1,24 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Settings, LogOut, FolderKanban, Package, Users, ShoppingCart } from 'lucide-react';
+import { Settings, LogOut, FolderKanban, Package, Users, ShoppingCart, Sun, Moon, Monitor } from 'lucide-react';
 import { Button } from '@/components/shared';
 import { authApi, getAuthSession } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/hooks/useTheme';
 
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const session = getAuthSession();
+  const { theme, setTheme } = useTheme();
+
+  const cycleTheme = () => {
+    const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    setTheme(themes[nextIndex]);
+  };
+
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   const handleLogout = () => {
     authApi.logout();
@@ -57,6 +68,14 @@ export function Layout() {
             <span className="text-sm text-muted-foreground">
               {session?.user?.firstName} {session?.user?.lastName}
             </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={cycleTheme}
+              title={`Theme: ${theme}`}
+            >
+              <ThemeIcon className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" asChild>
               <Link to="/change-password">
                 <Settings className="h-4 w-4" />
