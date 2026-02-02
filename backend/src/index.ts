@@ -14,7 +14,14 @@ type Bindings = {
   AUTH_SECRET: string;
   RESEND_API_KEY?: string;
   ADMIN_EMAIL?: string; // Email to receive admin notifications
+  FRONTEND_URL?: string; // Frontend URL for CORS (defaults to localhost in dev)
+  LOGIN_RATE_LIMITER?: RateLimit; // Cloudflare Rate Limiting binding
 };
+
+// Cloudflare Rate Limiting binding type
+interface RateLimit {
+  limit: (options: { key: string }) => Promise<{ success: boolean }>;
+}
 
 // User permission levels
 type Permission = 'readonly' | 'editor' | 'admin';
@@ -26,10 +33,10 @@ interface TokenData {
   permission?: Permission;
 }
 
-// Token validity period: 30 days in milliseconds
-const TOKEN_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+// Token validity period: 14 days in milliseconds
+const TOKEN_VALIDITY_MS = 14 * 24 * 60 * 60 * 1000;
 
-// PBKDF2 password hashing (matching the original Ruby implementation)
+// PBKDF2 password hashing with OWASP-recommended iterations
 async function hashPassword(password: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
@@ -44,7 +51,7 @@ async function hashPassword(password: string, salt: string): Promise<string> {
     {
       name: 'PBKDF2',
       salt: encoder.encode(salt),
-      iterations: 1000,
+      iterations: 600000,
       hash: 'SHA-256',
     },
     keyMaterial,
@@ -63,6 +70,23 @@ function generateSalt(): string {
   return Array.from(array)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// Password validation - returns error message or null if valid
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain a number';
+  return null;
+}
+
+// Parse and validate positive currency values
+function parsePositiveCurrency(value: any): number {
+  const num = parseFloat(String(value).replace(/[$,]/g, ''));
+  if (isNaN(num) || num < 0) return 0;
+  if (num > 1000000) return 1000000; // Reasonable upper limit
+  return Math.round(num * 100) / 100; // Round to cents
 }
 
 // HMAC-based token generation
@@ -146,8 +170,32 @@ type Variables = {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Middleware
-app.use('*', cors());
+// Security headers middleware
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('X-XSS-Protection', '0'); // Disabled as per modern best practices
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+});
+
+// CORS middleware with configurable origin
+app.use('*', async (c, next) => {
+  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowedOrigins = [frontendUrl];
+  // Also allow localhost in development
+  if (frontendUrl !== 'http://localhost:5173') {
+    allowedOrigins.push('http://localhost:5173');
+  }
+
+  return cors({
+    origin: allowedOrigins,
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 600,
+  })(c, next);
+});
 
 // Auth middleware - protect routes based on method
 app.use('*', async (c, next) => {
@@ -217,7 +265,7 @@ async function sendEmail(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Cheesy Parts <noreply@parts.team1310.ca>',
+        from: 'Cheesy Parts <noreply@calendar.team1310.ca>',
         to: [to],
         subject,
         html,
@@ -314,6 +362,15 @@ app.get('/health', (c) => {
 
 app.post('/auth/login', async (c) => {
   try {
+    // Rate limiting check using Cloudflare binding if available
+    if (c.env.LOGIN_RATE_LIMITER) {
+      const clientIp = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+      const { success } = await c.env.LOGIN_RATE_LIMITER.limit({ key: clientIp });
+      if (!success) {
+        return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
+      }
+    }
+
     const body = await c.req.json();
     const { email, password } = body;
 
@@ -370,6 +427,11 @@ app.post('/auth/register', async (c) => {
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       return c.json({ error: 'Invalid email format' }, 400);
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
     }
 
     const supabase = getSupabase(c.env);
@@ -485,6 +547,11 @@ app.post('/auth/change-password', async (c) => {
       return c.json({ error: 'Invalid old password' }, 401);
     }
 
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
+    }
+
     const newSalt = generateSalt();
     const newHash = await hashPassword(newPassword, newSalt);
 
@@ -536,7 +603,7 @@ app.get('/users', async (c) => {
     return c.json(users);
   } catch (error: any) {
     console.error('Get users error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -584,6 +651,11 @@ app.post('/users', async (c) => {
 
     if (!email || !password || !firstName || !lastName || !userPermission) {
       return c.json({ error: 'All fields required' }, 400);
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
     }
 
     const supabase = getSupabase(c.env);
@@ -652,6 +724,10 @@ app.put('/users/:id', async (c) => {
 
     // Handle password change
     if (body.password) {
+      const passwordError = validatePassword(body.password);
+      if (passwordError) {
+        return c.json({ error: passwordError }, 400);
+      }
       const salt = generateSalt();
       updateData.salt = salt;
       updateData.password_hash = await hashPassword(body.password, salt);
@@ -728,7 +804,7 @@ app.get('/projects', async (c) => {
     return c.json(data);
   } catch (error: any) {
     console.error('Get projects error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -886,7 +962,7 @@ app.get('/projects/:projectId/parts', async (c) => {
     return c.json(data);
   } catch (error: any) {
     console.error('Get parts error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1155,7 +1231,7 @@ app.get('/projects/:projectId/dashboard', async (c) => {
     });
   } catch (error: any) {
     console.error('Get dashboard error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1185,7 +1261,7 @@ app.get('/projects/:projectId/orders', async (c) => {
     return c.json(data);
   } catch (error: any) {
     console.error('Get orders error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1216,7 +1292,7 @@ app.get('/projects/:projectId/orders/all', async (c) => {
     return c.json(data);
   } catch (error: any) {
     console.error('Get all orders error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1251,8 +1327,8 @@ app.put('/orders/:id', async (c) => {
     if (body.status) updateData.status = body.status;
     if (body.orderedAt) updateData.ordered_at = body.orderedAt;
     if (body.paidForBy !== undefined) updateData.paid_for_by = body.paidForBy;
-    if (body.taxCost !== undefined) updateData.tax_cost = parseFloat(body.taxCost) || 0;
-    if (body.shippingCost !== undefined) updateData.shipping_cost = parseFloat(body.shippingCost) || 0;
+    if (body.taxCost !== undefined) updateData.tax_cost = parsePositiveCurrency(body.taxCost);
+    if (body.shippingCost !== undefined) updateData.shipping_cost = parsePositiveCurrency(body.shippingCost);
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (typeof body.reimbursed === 'boolean') updateData.reimbursed = body.reimbursed;
 
@@ -1325,7 +1401,7 @@ app.get('/projects/:projectId/order-items/unclassified', async (c) => {
     return c.json(data);
   } catch (error: any) {
     console.error('Get unclassified items error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1374,10 +1450,10 @@ app.post('/projects/:projectId/order-items', async (c) => {
       .insert({
         project_id: projectId,
         order_id: orderId,
-        quantity: parseInt(quantity) || 1,
+        quantity: Math.max(1, Math.min(10000, parseInt(quantity) || 1)),
         part_number: partNumber || '',
         description: description || '',
-        unit_cost: parseFloat(unitCost) || 0,
+        unit_cost: parsePositiveCurrency(unitCost),
         notes: notes || '',
       })
       .select()
@@ -1445,13 +1521,10 @@ app.put('/order-items/:id', async (c) => {
     }
 
     const updateData: Record<string, any> = { order_id: orderId };
-    if (body.quantity !== undefined) updateData.quantity = parseInt(body.quantity) || 1;
+    if (body.quantity !== undefined) updateData.quantity = Math.max(1, Math.min(10000, parseInt(body.quantity) || 1));
     if (body.partNumber !== undefined) updateData.part_number = body.partNumber;
     if (body.description !== undefined) updateData.description = body.description;
-    if (body.unitCost !== undefined) {
-      const cost = String(body.unitCost).replace(/\$/g, '');
-      updateData.unit_cost = parseFloat(cost) || 0;
-    }
+    if (body.unitCost !== undefined) updateData.unit_cost = parsePositiveCurrency(body.unitCost);
     if (body.notes !== undefined) updateData.notes = body.notes;
 
     const { data, error } = await supabase
@@ -1545,7 +1618,7 @@ app.get('/projects/:projectId/orders/stats', async (c) => {
     return c.json({ byVendor, byPurchaser });
   } catch (error: any) {
     console.error('Get order stats error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 
@@ -1622,7 +1695,7 @@ app.get('/vendors', async (c) => {
     return c.json(vendors);
   } catch (error: any) {
     console.error('Get vendors error:', error.message);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'An unexpected error occurred' }, 500);
   }
 });
 

@@ -8,8 +8,17 @@ port = 8787
 
 [vars]
 # Non-secret environment variables
+# FRONTEND_URL is set per environment below
 
 # Secrets are set via CLI:
 # wrangler secret put SUPABASE_URL
 # wrangler secret put SUPABASE_SERVICE_KEY
 # wrangler secret put AUTH_SECRET
+# wrangler secret put FRONTEND_URL (optional, defaults to localhost:5173)
+
+# Rate limiting for login endpoint (5 attempts per 60 seconds per IP)
+[[unsafe.bindings]]
+name = "LOGIN_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }

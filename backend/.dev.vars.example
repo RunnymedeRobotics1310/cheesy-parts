@@ -11,3 +11,7 @@ DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].poole
 # Resend email service
 RESEND_API_KEY=your_api_key
 ADMIN_EMAIL=admin@example.com
+
+# Frontend URL for CORS (defaults to http://localhost:5173 in development)
+# In production, set this to your actual frontend URL
+FRONTEND_URL=https://parts.team1310.ca
