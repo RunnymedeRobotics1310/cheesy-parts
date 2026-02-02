@@ -123,7 +123,7 @@ For example, in a project with prefix "2024", assemblies would be numbered 2024-
 - **Rate limiting:** Login attempts limited to 5 per 60 seconds per IP
 - **CORS:** Restricted to configured `FRONTEND_URL`
 - **Token validity:** 14 days
-- **Password hashing:** PBKDF2-SHA256 with 600,000 iterations
+- **Password hashing:** PBKDF2-SHA256 with 100,000 iterations
 
 ## Contributing
 

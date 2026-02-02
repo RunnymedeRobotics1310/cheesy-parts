@@ -36,7 +36,8 @@ interface TokenData {
 // Token validity period: 14 days in milliseconds
 const TOKEN_VALIDITY_MS = 14 * 24 * 60 * 60 * 1000;
 
-// PBKDF2 password hashing with OWASP-recommended iterations
+// PBKDF2 password hashing
+// Cloudflare Workers limits iterations to 100,000 max
 async function hashPassword(password: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
@@ -51,7 +52,7 @@ async function hashPassword(password: string, salt: string): Promise<string> {
     {
       name: 'PBKDF2',
       salt: encoder.encode(salt),
-      iterations: 600000,
+      iterations: 100000,
       hash: 'SHA-256',
     },
     keyMaterial,
@@ -182,9 +183,7 @@ app.use('*', async (c, next) => {
 
 // CORS middleware with configurable origin
 app.use('*', async (c, next) => {
-  // In production, FRONTEND_URL should be set; localhost only allowed when not configured
   const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-
   return cors({
     origin: [frontendUrl],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

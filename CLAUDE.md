@@ -145,7 +145,7 @@ All responses include:
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
 ### Password Hashing
-PBKDF2 with SHA-256, 600,000 iterations (OWASP recommended).
+PBKDF2 with SHA-256, 100,000 iterations (Cloudflare Workers maximum).
 
 ## Environment Variables
 
