@@ -1,4 +1,36 @@
+# Legacy Ruby
 *.log
 *.pid
 vendor
 .idea
+
+# Dependencies
+node_modules/
+.pnpm-debug.log
+
+# Build output
+dist/
+build/
+.wrangler/
+
+# Environment files
+.dev.vars
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+
+# Misc
+.cache/

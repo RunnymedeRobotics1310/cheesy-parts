@@ -1,0 +1,15 @@
+name = "cheesy-parts-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[dev]
+port = 8787
+
+[vars]
+# Non-secret environment variables
+
+# Secrets are set via CLI:
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_KEY
+# wrangler secret put AUTH_SECRET

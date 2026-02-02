@@ -1,0 +1,28 @@
+{
+  "name": "cheesy-parts",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Parts Management System for FRC Teams - Cloudflare Workers + Supabase",
+  "scripts": {
+    "migrate": "node database/migrate.js",
+    "migrate:status": "node database/migrate.js --status",
+    "migrate:create": "node database/migrate.js --create",
+    "migrate:seed": "node database/migrate.js --seed",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy": "npm run deploy:api && npm run deploy:frontend",
+    "deploy:api": "cd backend && wrangler deploy",
+    "deploy:frontend": "cd frontend && npm run build && wrangler pages deploy dist --project-name cheesy-parts",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "dependencies": {
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,9 @@
+# Supabase connection
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key
+
+# Auth secret for HMAC token signing (generate a random string)
+AUTH_SECRET=your-random-secret-key-here
+
+# Database URL for migrations (from Supabase Dashboard)
+DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
