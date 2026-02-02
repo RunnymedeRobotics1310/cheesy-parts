@@ -4,10 +4,10 @@ import { Plus, ChevronRight, Package, Pencil, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, PageLoading, ErrorDisplay, Input } from '@/components/shared';
 import { useProject, useOrders, useUnclassifiedOrderItems, useCreateOrderItem, useDeleteOrderItem, useVendors } from '@/hooks/useApi';
 import { getAuthSession } from '@/lib/api';
-import { formatCurrency, calculateOrderTotal } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem } from '@/lib/types';
 
-function OrderCard({ order, projectId }: { order: Order; projectId: string }) {
+function OrderCard({ order }: { order: Order }) {
   const itemsTotal = (order.order_items || []).reduce(
     (sum, item) => sum + item.quantity * item.unit_cost,
     0
@@ -234,7 +234,7 @@ export function OrdersPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {orders?.map((order) => (
-            <OrderCard key={order.id} order={order} projectId={projectId!} />
+            <OrderCard key={order.id} order={order} />
           ))}
         </div>
       )}

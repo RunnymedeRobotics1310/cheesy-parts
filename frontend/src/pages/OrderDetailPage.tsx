@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Pencil, Save, X } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input, Select, PageLoading, ErrorDisplay } from '@/components/shared';
-import { useOrder, useUpdateOrder, useDeleteOrder, useUpdateOrderItem, useDeleteOrderItem, useVendors } from '@/hooks/useApi';
+import { useOrder, useUpdateOrder, useDeleteOrder, useUpdateOrderItem, useDeleteOrderItem } from '@/hooks/useApi';
 import { getAuthSession } from '@/lib/api';
 import { formatCurrency, calculateOrderTotal } from '@/lib/utils';
 import type { OrderItem } from '@/lib/types';
@@ -11,7 +11,6 @@ export function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { data: order, isLoading, error } = useOrder(orderId!);
-  const { data: vendors } = useVendors();
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
   const updateOrderItem = useUpdateOrderItem();
@@ -66,7 +65,8 @@ export function OrderDetailPage() {
   };
 
   const handleDeleteOrder = async () => {
-    if (order?.order_items && order.order_items.length > 0) {
+    if (!order) return;
+    if (order.order_items && order.order_items.length > 0) {
       alert("Can't delete an order with items. Delete the items first.");
       return;
     }

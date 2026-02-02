@@ -10,6 +10,7 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name=cheesy-parts"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-query": "^5.62.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
