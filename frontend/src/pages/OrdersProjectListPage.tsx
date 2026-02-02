@@ -37,7 +37,7 @@ export function OrdersProjectListPage() {
                   </div>
                   <ShoppingCart className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button variant="outline" size="sm" asChild>
                     <Link to={`/projects/${project.id}/orders/open`}>Open</Link>
                   </Button>
@@ -46,6 +46,9 @@ export function OrdersProjectListPage() {
                   </Button>
                   <Button variant="outline" size="sm" asChild>
                     <Link to={`/projects/${project.id}/orders/received`}>Received</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`/projects/${project.id}/orders/all`}>All</Link>
                   </Button>
                 </div>
                 <Button variant="ghost" size="sm" className="w-full mt-2" asChild>

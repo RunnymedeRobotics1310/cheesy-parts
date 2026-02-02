@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button, Input, Select, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, ErrorDisplay, PageLoading } from '@/components/shared';
-import { usePart, useProject, useCreatePart, useUpdatePart } from '@/hooks/useApi';
+import { usePart, useProject, useCreatePart, useUpdatePart, useSettings } from '@/hooks/useApi';
 import { PART_STATUS_MAP, PART_STATUSES, PART_PRIORITY_MAP, type PartStatus, type PartPriority } from '@/lib/types';
 
 export function PartFormPage() {
@@ -17,9 +17,11 @@ export function PartFormPage() {
   const { data: existingPart, isLoading: partLoading } = usePart(id || '');
   const actualProjectId = projectId || existingPart?.project_id || '';
   const { data: project, isLoading: projectLoading } = useProject(actualProjectId);
+  const { data: settings } = useSettings();
 
   const createPart = useCreatePart();
   const updatePart = useUpdatePart();
+  const hideUnusedFields = settings?.hide_unused_fields ?? false;
 
   const [name, setName] = useState('');
   const [type, setType] = useState<'part' | 'assembly'>(typeParam || 'part');
@@ -164,41 +166,43 @@ export function PartFormPage() {
 
             {isEditing && (
               <>
-                <div className="space-y-4">
-                  <h3 className="font-medium">Material</h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Input
-                      label="Source Material"
-                      value={sourceMaterial}
-                      onChange={(e) => setSourceMaterial(e.target.value)}
-                      placeholder="e.g., 1x2 aluminum tube"
-                    />
-                    <Input
-                      label="Quantity"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      placeholder="e.g., 4"
-                    />
-                    <Input
-                      label="Cut Length"
-                      value={cutLength}
-                      onChange={(e) => setCutLength(e.target.value)}
-                      placeholder="e.g., 12 inches"
-                    />
-                    <div className="flex items-center gap-2 pt-6">
-                      <input
-                        type="checkbox"
-                        id="haveMaterial"
-                        checked={haveMaterial}
-                        onChange={(e) => setHaveMaterial(e.target.checked)}
-                        className="rounded border-input"
+                {!hideUnusedFields && (
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Material</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Input
+                        label="Source Material"
+                        value={sourceMaterial}
+                        onChange={(e) => setSourceMaterial(e.target.value)}
+                        placeholder="e.g., 1x2 aluminum tube"
                       />
-                      <label htmlFor="haveMaterial" className="text-sm">
-                        Have material in stock
-                      </label>
+                      <Input
+                        label="Quantity"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        placeholder="e.g., 4"
+                      />
+                      <Input
+                        label="Cut Length"
+                        value={cutLength}
+                        onChange={(e) => setCutLength(e.target.value)}
+                        placeholder="e.g., 12 inches"
+                      />
+                      <div className="flex items-center gap-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id="haveMaterial"
+                          checked={haveMaterial}
+                          onChange={(e) => setHaveMaterial(e.target.checked)}
+                          className="rounded border-input"
+                        />
+                        <label htmlFor="haveMaterial" className="text-sm">
+                          Have material in stock
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-4">
                   <h3 className="font-medium">Other</h3>

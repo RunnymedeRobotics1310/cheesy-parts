@@ -12,6 +12,8 @@ type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
   AUTH_SECRET: string;
+  RESEND_API_KEY?: string;
+  ADMIN_EMAIL?: string; // Email to receive admin notifications
 };
 
 // User permission levels
@@ -193,6 +195,108 @@ function canAdmin(permission: Permission): boolean {
 }
 
 // ============================================
+// EMAIL NOTIFICATION FUNCTIONS
+// ============================================
+
+async function sendEmail(
+  env: Bindings,
+  to: string,
+  subject: string,
+  html: string
+): Promise<boolean> {
+  if (!env.RESEND_API_KEY) {
+    console.log('RESEND_API_KEY not configured, skipping email');
+    return false;
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Cheesy Parts <noreply@parts.team1310.ca>',
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+
+    if (response.ok) {
+      console.log(`Email sent to ${to}`);
+      return true;
+    } else {
+      const errorData = await response.json();
+      console.error(`Failed to send email to ${to}:`, errorData);
+      return false;
+    }
+  } catch (err) {
+    console.error(`Error sending email to ${to}:`, err);
+    return false;
+  }
+}
+
+function buildRegistrationEmailHtml(firstName: string, lastName: string, email: string): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
+    .info { background: white; padding: 15px; border-radius: 4px; margin: 15px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2 style="margin: 0;">New User Registration</h2>
+    </div>
+    <div class="content">
+      <p>A new user has registered for Cheesy Parts and is awaiting approval:</p>
+      <div class="info">
+        <p><strong>Name:</strong> ${firstName} ${lastName}</p>
+        <p><strong>Email:</strong> ${email}</p>
+      </div>
+      <p>Please log in to the admin panel to approve or reject this registration.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function buildApprovalEmailHtml(firstName: string): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #16a34a; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2 style="margin: 0;">Account Approved!</h2>
+    </div>
+    <div class="content">
+      <p>Hi ${firstName},</p>
+      <p>Your Cheesy Parts account has been approved! You can now log in and start using the system.</p>
+      <p>Welcome to the team!</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ============================================
 // HEALTH CHECK
 // ============================================
 
@@ -300,6 +404,16 @@ app.post('/auth/register', async (c) => {
       .single();
 
     if (error) throw error;
+
+    // Send admin notification email
+    if (c.env.ADMIN_EMAIL) {
+      await sendEmail(
+        c.env,
+        c.env.ADMIN_EMAIL,
+        'New Cheesy Parts Registration',
+        buildRegistrationEmailHtml(firstName, lastName, email)
+      );
+    }
 
     return c.json({
       message: 'Registration successful. Your account is pending approval.',
@@ -486,6 +600,17 @@ app.put('/users/:id', async (c) => {
 
     const body = await c.req.json();
     const supabase = getSupabase(c.env);
+    const userId = c.req.param('id');
+
+    // Get current user state to check if we're enabling them
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('enabled, email, first_name')
+      .eq('id', userId)
+      .single();
+
+    const wasDisabled = currentUser && !currentUser.enabled;
+    const willBeEnabled = body.enabled === true;
 
     const updateData: Record<string, any> = {};
     if (body.email) updateData.email = body.email.toLowerCase();
@@ -504,11 +629,22 @@ app.put('/users/:id', async (c) => {
     const { data, error } = await supabase
       .from('users')
       .update(updateData)
-      .eq('id', c.req.param('id'))
+      .eq('id', userId)
       .select('id, email, first_name, last_name, permission, enabled')
       .single();
 
     if (error) throw error;
+
+    // Send approval email if user was just enabled
+    if (wasDisabled && willBeEnabled && currentUser) {
+      await sendEmail(
+        c.env,
+        currentUser.email,
+        'Your Cheesy Parts Account Has Been Approved',
+        buildApprovalEmailHtml(currentUser.first_name)
+      );
+    }
+
     return c.json(data);
   } catch (error: any) {
     console.error('Update user error:', error.message);
@@ -1014,6 +1150,37 @@ app.get('/projects/:projectId/orders', async (c) => {
   }
 });
 
+// All orders with optional vendor/purchaser filter
+app.get('/projects/:projectId/orders/all', async (c) => {
+  try {
+    const supabase = getSupabase(c.env);
+    const projectId = c.req.param('projectId');
+    const vendor = c.req.query('vendor');
+    const purchaser = c.req.query('purchaser');
+
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('project_id', projectId)
+      .order('ordered_at', { ascending: false })
+      .order('vendor_name');
+
+    if (vendor) {
+      query = query.eq('vendor_name', vendor);
+    }
+    if (purchaser) {
+      query = query.eq('paid_for_by', purchaser);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return c.json(data);
+  } catch (error: any) {
+    console.error('Get all orders error:', error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 app.get('/orders/:id', async (c) => {
   try {
     const supabase = getSupabase(c.env);
@@ -1340,6 +1507,60 @@ app.get('/projects/:projectId/orders/stats', async (c) => {
   } catch (error: any) {
     console.error('Get order stats error:', error.message);
     return c.json({ error: error.message }, 500);
+  }
+});
+
+// ============================================
+// SETTINGS ENDPOINT
+// ============================================
+
+app.get('/settings', async (c) => {
+  try {
+    const supabase = getSupabase(c.env);
+
+    // Get or create settings
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .single();
+
+    if (error && error.code === 'PGRST116') {
+      // No settings row, return defaults
+      return c.json({ hide_unused_fields: false });
+    }
+    if (error) throw error;
+    return c.json(data);
+  } catch (error: any) {
+    console.error('Get settings error:', error.message);
+    return c.json({ hide_unused_fields: false });
+  }
+});
+
+app.put('/settings', async (c) => {
+  try {
+    const permission = c.get('permission');
+    if (!canAdmin(permission)) {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    const body = await c.req.json();
+    const supabase = getSupabase(c.env);
+
+    // Upsert settings
+    const { data, error } = await supabase
+      .from('settings')
+      .upsert({
+        id: 1,
+        hide_unused_fields: body.hideUnusedFields ?? false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return c.json(data);
+  } catch (error: any) {
+    console.error('Update settings error:', error.message);
+    return c.json({ error: error.message }, 400);
   }
 });
 

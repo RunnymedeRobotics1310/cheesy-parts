@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Plus, Settings, ChevronRight, LayoutDashboard } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge, PageLoading, ErrorDisplay, Select } from '@/components/shared';
-import { useProject, useParts } from '@/hooks/useApi';
+import { Plus, Settings, ChevronRight, LayoutDashboard, ChevronUp, ChevronDown } from 'lucide-react';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, PageLoading, ErrorDisplay } from '@/components/shared';
+import { useProject, useParts, useUpdatePartStatus } from '@/hooks/useApi';
 import { getAuthSession } from '@/lib/api';
-import { formatPartNumber, PART_STATUS_MAP, type Part, type PartStatus } from '@/lib/types';
+import { formatPartNumber, PART_STATUS_MAP, PART_STATUSES, type Part, type PartStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function getStatusColor(status: PartStatus): 'default' | 'success' | 'warning' | 'info' | 'secondary' {
@@ -20,9 +20,11 @@ function getPriorityClass(priority: number): string {
   return '';
 }
 
+type SortField = 'part_number' | 'name' | 'type' | 'status';
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [sort, setSort] = useState('part_number');
+  const [sort, setSort] = useState<SortField>('part_number');
   const { data: project, isLoading: projectLoading, error: projectError } = useProject(id!);
   const { data: parts, isLoading: partsLoading, error: partsError } = useParts(id!, sort);
 
@@ -38,12 +40,26 @@ export function ProjectDetailPage() {
   const partsById = new Map(parts?.map((p) => [p.id, p]) || []);
   const topLevelParts = parts?.filter((p) => !p.parent_part_id) || [];
 
-  const sortOptions = [
-    { value: 'part_number', label: 'Part Number' },
-    { value: 'name', label: 'Name' },
-    { value: 'type', label: 'Type' },
-    { value: 'status', label: 'Status' },
-  ];
+  const handleSort = (field: SortField) => {
+    setSort(field);
+  };
+
+  const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
+    <button
+      onClick={() => handleSort(field)}
+      className={cn(
+        'flex items-center gap-1 font-medium hover:text-primary transition-colors',
+        sort === field && 'text-primary'
+      )}
+    >
+      {label}
+      {sort === field ? (
+        <ChevronUp className="h-4 w-4" />
+      ) : (
+        <ChevronDown className="h-4 w-4 opacity-30" />
+      )}
+    </button>
+  );
 
   return (
     <div className="space-y-6">
@@ -86,16 +102,6 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-muted-foreground">Sort by:</span>
-        <Select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          options={sortOptions}
-          className="w-40"
-        />
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Parts ({parts?.length || 0})</CardTitle>
@@ -106,18 +112,37 @@ export function ProjectDetailPage() {
               No parts yet. Create your first part or assembly.
             </div>
           ) : (
-            <div className="space-y-1">
-              {topLevelParts.map((part) => (
-                <PartRow
-                  key={part.id}
-                  part={part}
-                  project={project}
-                  partsById={partsById}
-                  allParts={parts!}
-                  level={0}
-                />
-              ))}
-            </div>
+            <>
+              {/* Column Headers */}
+              <div className="flex items-center gap-4 p-3 border-b mb-2 text-sm">
+                <div className="w-4" /> {/* Spacer for chevron */}
+                <div className="w-32 flex-shrink-0">
+                  <SortHeader field="part_number" label="Part #" />
+                </div>
+                <div className="w-20 flex-shrink-0">
+                  <SortHeader field="type" label="Type" />
+                </div>
+                <div className="flex-1">
+                  <SortHeader field="name" label="Name" />
+                </div>
+                <div className="w-40">
+                  <SortHeader field="status" label="Status" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                {topLevelParts.map((part) => (
+                  <PartRow
+                    key={part.id}
+                    part={part}
+                    project={project}
+                    partsById={partsById}
+                    allParts={parts!}
+                    level={0}
+                    canEdit={canEdit}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -131,33 +156,85 @@ interface PartRowProps {
   partsById: Map<string, Part>;
   allParts: Part[];
   level: number;
+  canEdit: boolean;
 }
 
-function PartRow({ part, project, partsById, allParts, level }: PartRowProps) {
+function PartRow({ part, project, partsById, allParts, level, canEdit }: PartRowProps) {
   const children = allParts.filter((p) => p.parent_part_id === part.id);
+  const updateStatus = useUpdatePartStatus();
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+
+  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const newStatus = e.target.value as PartStatus;
+    await updateStatus.mutateAsync({ id: part.id, status: newStatus });
+    setIsEditingStatus(false);
+  };
+
+  const handleStatusClick = (e: React.MouseEvent) => {
+    if (canEdit) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsEditingStatus(true);
+    }
+  };
 
   return (
     <>
-      <Link
-        to={`/parts/${part.id}`}
+      <div
         className={cn(
-          'flex items-center gap-4 p-3 rounded-md hover:bg-muted transition-colors',
+          'flex items-center gap-4 p-3 rounded-md hover:bg-muted transition-colors group',
           getPriorityClass(part.priority)
         )}
         style={{ paddingLeft: `${level * 24 + 12}px` }}
       >
-        {children.length > 0 && (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        {children.length > 0 ? (
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        ) : (
+          <div className="w-4 flex-shrink-0" />
         )}
-        {children.length === 0 && level > 0 && <div className="w-4" />}
-        <span className="font-mono text-sm w-32 flex-shrink-0">
+        <Link
+          to={`/parts/${part.id}`}
+          className="font-mono text-sm w-32 flex-shrink-0 hover:underline"
+        >
           {formatPartNumber(project, part)}
+        </Link>
+        <span className="w-20 flex-shrink-0 text-sm text-muted-foreground capitalize">
+          {part.type}
         </span>
-        <span className="flex-1 truncate">{part.name}</span>
-        <Badge variant={getStatusColor(part.status)}>
-          {PART_STATUS_MAP[part.status]}
-        </Badge>
-      </Link>
+        <Link
+          to={`/parts/${part.id}`}
+          className="flex-1 truncate hover:underline"
+        >
+          {part.name}
+        </Link>
+        <div className="w-40" onClick={handleStatusClick}>
+          {isEditingStatus ? (
+            <select
+              value={part.status}
+              onChange={handleStatusChange}
+              onBlur={() => setIsEditingStatus(false)}
+              autoFocus
+              className="w-full text-sm border rounded px-2 py-1 bg-background"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {PART_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {PART_STATUS_MAP[s]}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Badge
+              variant={getStatusColor(part.status)}
+              className={cn(canEdit && 'cursor-pointer hover:opacity-80')}
+            >
+              {PART_STATUS_MAP[part.status]}
+            </Badge>
+          )}
+        </div>
+      </div>
       {children.map((child) => (
         <PartRow
           key={child.id}
@@ -166,6 +243,7 @@ function PartRow({ part, project, partsById, allParts, level }: PartRowProps) {
           partsById={partsById}
           allParts={allParts}
           level={level + 1}
+          canEdit={canEdit}
         />
       ))}
     </>

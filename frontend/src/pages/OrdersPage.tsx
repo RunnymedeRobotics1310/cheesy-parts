@@ -82,6 +82,7 @@ export function OrdersPage() {
     { key: 'open', label: 'Open' },
     { key: 'ordered', label: 'Ordered' },
     { key: 'received', label: 'Received' },
+    { key: 'all', label: 'All' },
   ];
 
   return (

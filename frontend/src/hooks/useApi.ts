@@ -8,6 +8,7 @@ import {
   ordersApi,
   orderItemsApi,
   vendorsApi,
+  settingsApi,
 } from '@/lib/api';
 import type { PartStatus } from '@/lib/types';
 
@@ -329,5 +330,32 @@ export function useVendors() {
   return useQuery({
     queryKey: ['vendors'],
     queryFn: vendorsApi.getAll,
+  });
+}
+
+// All orders with filters hook
+export function useAllOrders(projectId: string, filters?: { vendor?: string; purchaser?: string }) {
+  return useQuery({
+    queryKey: ['orders', 'all', projectId, filters],
+    queryFn: () => ordersApi.getAllByProject(projectId, filters),
+    enabled: !!projectId,
+  });
+}
+
+// Settings hooks
+export function useSettings() {
+  return useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+  });
+}
+
+export function useUpdateSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: settingsApi.update,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
   });
 }

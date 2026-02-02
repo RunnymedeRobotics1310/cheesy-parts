@@ -20,6 +20,7 @@ import { OrdersProjectListPage } from '@/pages/OrdersProjectListPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { OrderStatsPage } from '@/pages/OrderStatsPage';
+import { AllOrdersPage } from '@/pages/AllOrdersPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,6 +68,7 @@ function App() {
             {/* Orders */}
             <Route path="/orders" element={<OrdersProjectListPage />} />
             <Route path="/projects/:id/orders/stats" element={<OrderStatsPage />} />
+            <Route path="/projects/:id/orders/all" element={<AllOrdersPage />} />
             <Route path="/projects/:id/orders/:status" element={<OrdersPage />} />
             <Route path="/orders/:orderId" element={<OrderDetailPage />} />
 

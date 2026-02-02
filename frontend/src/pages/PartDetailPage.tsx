@@ -1,7 +1,7 @@
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, PageLoading, ErrorDisplay, Select } from '@/components/shared';
-import { usePart, useParts, useUpdatePartStatus, useDeletePart } from '@/hooks/useApi';
+import { usePart, useParts, useUpdatePartStatus, useDeletePart, useSettings } from '@/hooks/useApi';
 import { getAuthSession } from '@/lib/api';
 import { formatPartNumber, PART_STATUS_MAP, PART_STATUSES, PART_PRIORITY_MAP, type PartStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -18,11 +18,13 @@ export function PartDetailPage() {
   const navigate = useNavigate();
   const { data: part, isLoading, error } = usePart(id!);
   const { data: allParts } = useParts(part?.project_id || '', 'part_number');
+  const { data: settings } = useSettings();
   const updateStatus = useUpdatePartStatus();
   const deletePart = useDeletePart();
 
   const session = getAuthSession();
   const canEdit = session?.user?.permission === 'editor' || session?.user?.permission === 'admin';
+  const hideUnusedFields = settings?.hide_unused_fields ?? false;
 
   if (isLoading) return <PageLoading />;
   if (error) return <ErrorDisplay error={error} />;
@@ -145,31 +147,33 @@ export function PartDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Material</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Source Material</label>
-                <p>{part.source_material || '-'}</p>
+        {!hideUnusedFields && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Material</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Source Material</label>
+                  <p>{part.source_material || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Have Material</label>
+                  <p>{part.have_material ? 'Yes' : 'No'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Quantity</label>
+                  <p>{part.quantity || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Cut Length</label>
+                  <p>{part.cut_length || '-'}</p>
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Have Material</label>
-                <p>{part.have_material ? 'Yes' : 'No'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Quantity</label>
-                <p>{part.quantity || '-'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Cut Length</label>
-                <p>{part.cut_length || '-'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {part.type === 'assembly' && (

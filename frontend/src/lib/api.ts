@@ -229,6 +229,14 @@ export const ordersApi = {
     return fetchApi<Order[]>(`/projects/${projectId}/orders${query}`);
   },
 
+  getAllByProject: (projectId: string, filters?: { vendor?: string; purchaser?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.vendor) params.set('vendor', filters.vendor);
+    if (filters?.purchaser) params.set('purchaser', filters.purchaser);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return fetchApi<Order[]>(`/projects/${projectId}/orders/all${query}`);
+  },
+
   getById: (id: string) => fetchApi<Order>(`/orders/${id}`),
 
   update: (id: string, order: Partial<{
@@ -290,4 +298,19 @@ export const orderItemsApi = {
 // Vendors API (for autocomplete)
 export const vendorsApi = {
   getAll: () => fetchApi<string[]>('/vendors'),
+};
+
+// Settings API
+export interface Settings {
+  hide_unused_fields: boolean;
+}
+
+export const settingsApi = {
+  get: () => fetchApi<Settings>('/settings'),
+
+  update: (settings: { hideUnusedFields: boolean }) =>
+    fetchApi<Settings>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
 };
